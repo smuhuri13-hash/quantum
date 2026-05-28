@@ -421,7 +421,8 @@ def inject_onboarding_styles():
 
 def show_landing_page():
     inject_onboarding_styles()
-    st.markdown("<h1 style='text-align: center; font-size: 3rem; margin-bottom: 0.5rem;'>Quantum Social Network Analysis Studio</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; font-size: 3rem; margin-bottom: 0.2rem;'>Quantum Social Network Analysis Studio</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 1.1rem; font-weight: 600; color: #38bdf8; margin-bottom: 1.5rem;'>Created by Dr. Samya Muhuri and his research group of Thapar Institute of Engineering and Technology, Patiala</p>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; font-size: 1.2rem; color: #94a3b8; margin-bottom: 2.5rem; max-width: 800px; margin-left: auto; margin-right: auto;'>Unlock complex network insights using quantum walks, superposition encodings, and hybrid quantum neural networks.</p>", unsafe_allow_html=True)
     
     col1, col2 = st.columns(2)
@@ -1052,17 +1053,106 @@ def show_demo_datasets_page():
         st.session_state.page = "landing"
         st.rerun()
 
+def ensure_exact_edges(G, target_edges, is_directed=False):
+    current_edges = list(G.edges())
+    if len(current_edges) > target_edges:
+        to_remove = random.sample(current_edges, len(current_edges) - target_edges)
+        G.remove_edges_from(to_remove)
+    elif len(current_edges) < target_edges:
+        nodes = list(G.nodes())
+        while G.number_of_edges() < target_edges:
+            u = random.choice(nodes)
+            v = random.choice(nodes)
+            if u != v and not G.has_edge(u, v):
+                G.add_edge(u, v)
+    return G
+
+def get_misinformation_graph():
+    G = nx.barabasi_albert_graph(50, 2)
+    return ensure_exact_edges(G, 95, is_directed=False)
+
+def get_friendship_graph():
+    return nx.karate_club_graph()
+
+def get_twitter_graph():
+    G = nx.DiGraph()
+    G.add_nodes_from(range(45))
+    for u in range(4, 45):
+        for l in [0, 1, 2, 3]:
+            if random.random() < 0.5:
+                G.add_edge(u, l)
+    for l1 in [0, 1, 2, 3]:
+        for l2 in [0, 1, 2, 3]:
+            if l1 != l2:
+                G.add_edge(l1, l2)
+    return ensure_exact_edges(G, 120, is_directed=True)
+
+def get_citation_graph():
+    G = nx.DiGraph()
+    G.add_nodes_from(range(40))
+    for u in range(4, 40):
+        for l in range(min(u, 4)):
+            if random.random() < 0.6:
+                G.add_edge(u, l)
+    current_edges = list(G.edges())
+    if len(current_edges) > 85:
+        to_remove = random.sample(current_edges, len(current_edges) - 85)
+        G.remove_edges_from(to_remove)
+    elif len(current_edges) < 85:
+        all_possible = [(u, v) for u in range(40) for v in range(u) if not G.has_edge(u, v)]
+        random.shuffle(all_possible)
+        for u, v in all_possible:
+            if G.number_of_edges() >= 85:
+                break
+            G.add_edge(u, v)
+    return G
+
+def get_brain_graph():
+    G = nx.watts_strogatz_graph(28, 10, 0.1)
+    G = nx.Graph(G)
+    return ensure_exact_edges(G, 142, is_directed=False)
+
+def get_fraud_graph():
+    G = nx.Graph()
+    G.add_nodes_from(range(32))
+    for i in range(4):
+        base = i * 8
+        for j in range(8):
+            G.add_edge(base + j, base + ((j + 1) % 8))
+    return ensure_exact_edges(G, 64, is_directed=False)
+
+def get_disease_graph():
+    G = nx.grid_2d_graph(5, 8)
+    mapping = {node: i for i, node in enumerate(G.nodes())}
+    G = nx.relabel_nodes(G, mapping)
+    G = nx.Graph(G)
+    return ensure_exact_edges(G, 75, is_directed=False)
+
+def get_influencer_graph():
+    G = nx.Graph()
+    G.add_nodes_from(range(35))
+    for u in range(2, 35):
+        G.add_edge(0, u)
+        G.add_edge(1, u)
+    return ensure_exact_edges(G, 80, is_directed=False)
+
 def load_and_run_dataset(name, meta):
-    if name == "Friendship Networks":
-        st.session_state.G = nx.karate_club_graph()
-    elif name == "Financial Fraud":
-        G = nx.cycle_graph(8)
-        G.add_edges_from([(8,9), (9,10), (10,11), (11,8), (0,8), (4,10)])
-        st.session_state.G = G
+    if name == "Misinformation Detection":
+        st.session_state.G = get_misinformation_graph()
+    elif name == "Friendship Networks":
+        st.session_state.G = get_friendship_graph()
+    elif name == "Twitter Interactions":
+        st.session_state.G = get_twitter_graph()
+    elif name == "Citation Networks":
+        st.session_state.G = get_citation_graph()
     elif name == "Brain Connectivity":
-        st.session_state.G = nx.erdos_renyi_graph(28, 0.35)
-    elif name == "Misinformation Detection":
-        st.session_state.G = nx.barabasi_albert_graph(50, 2)
+        st.session_state.G = get_brain_graph()
+    elif name == "Financial Fraud":
+        st.session_state.G = get_fraud_graph()
+    elif name == "Disease Spread":
+        st.session_state.G = get_disease_graph()
+    elif name == "Influencer Discovery":
+        st.session_state.G = get_influencer_graph()
     else:
         st.session_state.G = nx.watts_strogatz_graph(meta["nodes"], 4, 0.1)
         
@@ -1605,23 +1695,108 @@ def show_story_mode():
         </div>
         """, unsafe_allow_html=True)
 
-def show_interactive_visualizer():
+def show_interactive_visualizer(G=None):
     st.subheader("🔲 Graph-to-Matrix Coordinate Mapper")
     st.write("Hover over matrix cells or nodes to see the mapping of graph edges to adjacency matrix entries.")
     
-    html_code = """
+    import json
+    import math
+    
+    # 1. Fallback to default cycle graph of 5 nodes if no graph is provided
+    if G is None:
+        G = nx.cycle_graph(5)
+        
+    # 2. Select nodes to display. Limit to a max of 7 nodes to ensure visual clarity.
+    # We select the top nodes by degree centrality (to keep it interesting/dense)
+    if G.number_of_nodes() <= 7:
+        nodes_list = sorted(list(G.nodes()))
+    else:
+        # Sort by degree, select top 7, and sort them so they appear ordered in circular layout
+        deg_centrality = nx.degree_centrality(G)
+        top_nodes = sorted(deg_centrality.items(), key=lambda x: x[1], reverse=True)[:7]
+        nodes_list = sorted([node for node, cent in top_nodes])
+        st.caption(f"💡 Showing coordinate mapping for a sub-graph of 7 key influencer nodes (out of {G.number_of_nodes()} total nodes).")
+
+    num_nodes = len(nodes_list)
+    cx = 110
+    cy = 110
+    r_circle = 75
+    positions = {}
+    for i, node in enumerate(nodes_list):
+        angle = 2 * math.pi * i / num_nodes - math.pi / 2
+        px_x = cx + r_circle * math.cos(angle)
+        px_y = cy + r_circle * math.sin(angle)
+        positions[node] = (px_x, px_y)
+
+    lines_html = []
+    edges_list = []
+    for i in range(len(nodes_list)):
+        for j in range(i + 1, len(nodes_list)):
+            u = nodes_list[i]
+            v = nodes_list[j]
+            if G.has_edge(u, v):
+                edges_list.append((i, j))
+                x1, y1 = positions[u]
+                x2, y2 = positions[v]
+                lines_html.append(f'<line id="e{i}_{j}" class="edge" x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" />')
+
+    circles_html = []
+    texts_html = []
+    for i, node in enumerate(nodes_list):
+        x, y = positions[node]
+        label = str(node)
+        if len(label) > 4:
+            label = label[:3] + ".."
+        circles_html.append(f'<circle id="n{i}" class="node" cx="{x:.1f}" cy="{y:.1f}" r="16" />')
+        texts_html.append(f'<text x="{x:.1f}" y="{y:.1f}" class="node-text">{label}</text>')
+
+    # 3. Create cells for the Adjacency Matrix
+    cells_html = []
+    # Row header
+    cells_html.append('<div class="cell header">/</div>')
+    for node in nodes_list:
+        label = str(node)
+        if len(label) > 3:
+            label = label[:2] + "."
+        cells_html.append(f'<div class="cell header">{label}</div>')
+
+    for i, u in enumerate(nodes_list):
+        label = str(u)
+        if len(label) > 3:
+            label = label[:2] + "."
+        cells_html.append(f'<div class="cell header">{label}</div>')
+        for j, v in enumerate(nodes_list):
+            if i == j:
+                cells_html.append(f'<div id="c{i}_{j}" class="cell self-loop" data-r="{i}" data-c="{j}">0</div>')
+            elif G.has_edge(u, v):
+                cells_html.append(f'<div id="c{i}_{j}" class="cell edge-active" data-r="{i}" data-c="{j}">1</div>')
+            else:
+                cells_html.append(f'<div id="c{i}_{j}" class="cell" data-r="{i}" data-c="{j}">0</div>')
+
+    # Convert lists to html block strings
+    lines_str = "\n                ".join(lines_html)
+    circles_str = "\n                ".join(circles_html)
+    texts_str = "\n                ".join(texts_html)
+    cells_str = "\n                ".join(cells_html)
+    node_labels_js = [str(node) for node in nodes_list]
+    
+    # Calculate HTML/CSS widths dynamically
+    grid_cols = num_nodes + 1
+    grid_width = grid_cols * 32 + (grid_cols - 1) * 4
+    
+    html_code = f"""
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-    body {
+    body {{
         background: transparent;
         color: #e2e8f0;
         font-family: 'Inter', sans-serif;
         margin: 0;
         padding: 0;
-    }
-    .viz-container {
+    }}
+    .viz-container {{
         display: flex;
         flex-wrap: wrap;
         gap: 20px;
@@ -1631,20 +1806,21 @@ def show_interactive_visualizer():
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 12px;
         padding: 20px;
-    }
-    .panel {
+    }}
+    .panel {{
         flex: 1;
         min-width: 250px;
         text-align: center;
-    }
-    .matrix-grid {
+    }}
+    .matrix-grid {{
         display: grid;
-        grid-template-columns: repeat(6, 32px);
+        grid-template-columns: repeat({grid_cols}, 32px);
         gap: 4px;
         justify-content: center;
         margin: 15px auto;
-    }
-    .cell {
+        max-width: {grid_width}px;
+    }}
+    .cell {{
         width: 32px;
         height: 32px;
         line-height: 32px;
@@ -1655,73 +1831,73 @@ def show_interactive_visualizer():
         border-radius: 4px;
         cursor: pointer;
         transition: all 0.2s ease;
-    }
-    .cell.header {
+    }}
+    .cell.header {{
         background: rgba(56, 189, 248, 0.1);
         color: #38bdf8;
         font-weight: bold;
         border-color: rgba(56, 189, 248, 0.2);
         cursor: default;
-    }
-    .cell.edge-active {
+    }}
+    .cell.edge-active {{
         background: rgba(16, 185, 129, 0.4);
         border-color: #10b981;
         color: white;
         font-weight: bold;
-    }
-    .cell.self-loop {
+    }}
+    .cell.self-loop {{
         background: rgba(239, 68, 68, 0.1);
         border-color: rgba(239, 68, 68, 0.2);
         color: #ef4444;
-    }
-    .cell.hovered {
+    }}
+    .cell.hovered {{
         background: #8b5cf6 !important;
         border-color: #a855f7 !important;
         color: white !important;
         transform: scale(1.1);
         box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
-    }
-    svg {
+    }}
+    svg {{
         background: transparent;
         overflow: visible;
-    }
-    .node {
+    }}
+    .node {{
         fill: #3b82f6;
         stroke: #fff;
         stroke-width: 2px;
         cursor: pointer;
         transition: all 0.2s ease;
-    }
-    .node:hover, .node.active {
+    }}
+    .node:hover, .node.active {{
         fill: #a855f7;
         stroke: #38bdf8;
         stroke-width: 3px;
         filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.8));
-    }
-    .edge {
+    }}
+    .edge {{
         stroke: rgba(255, 255, 255, 0.2);
         stroke-width: 2px;
         transition: all 0.2s ease;
-    }
-    .edge.active {
+    }}
+    .edge.active {{
         stroke: #10b981;
         stroke-width: 4px;
         filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.8));
-    }
-    .node-text {
+    }}
+    .node-text {{
         fill: #cbd5e1;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: bold;
         pointer-events: none;
         text-anchor: middle;
         dominant-baseline: middle;
-    }
-    .info-bar {
+    }}
+    .info-bar {{
         margin-top: 15px;
         font-size: 0.85rem;
         color: #94a3b8;
         min-height: 20px;
-    }
+    }}
     </style>
     </head>
     <body>
@@ -1729,69 +1905,17 @@ def show_interactive_visualizer():
         <div class="panel">
             <h4 style="margin: 0 0 10px 0; color: #38bdf8;">Graph View</h4>
             <svg width="220" height="220" id="graph-svg">
-                <line id="e01" class="edge" x1="110" y1="30" x2="190" y2="90" />
-                <line id="e12" class="edge" x1="190" y2="90" x2="160" y2="180" />
-                <line id="e23" class="edge" x1="160" y2="180" x2="60" y2="180" />
-                <line id="e34" class="edge" x1="60" y2="180" x2="30" y2="90" />
-                <line id="e40" class="edge" x1="30" y2="90" x2="110" y2="30" />
+                {lines_str}
                 
-                <circle id="n0" class="node" cx="110" cy="30" r="16" />
-                <circle id="n1" class="node" cx="190" cy="90" r="16" />
-                <circle id="n2" class="node" cx="160" cy="180" r="16" />
-                <circle id="n3" class="node" cx="60" cy="180" r="16" />
-                <circle id="n4" class="node" cx="30" cy="90" r="16" />
+                {circles_str}
                 
-                <text x="110" y="30" class="node-text">P0</text>
-                <text x="190" y="90" class="node-text">P1</text>
-                <text x="160" y="180" class="node-text">P2</text>
-                <text x="60" y="180" class="node-text">P3</text>
-                <text x="30" y="90" class="node-text">P4</text>
+                {texts_str}
             </svg>
         </div>
         <div class="panel">
             <h4 style="margin: 0 0 10px 0; color: #a855f7;">Adjacency Matrix</h4>
             <div class="matrix-grid" id="matrix">
-                <div class="cell header">/</div>
-                <div class="cell header">P0</div>
-                <div class="cell header">P1</div>
-                <div class="cell header">P2</div>
-                <div class="cell header">P3</div>
-                <div class="cell header">P4</div>
-                
-                <div class="cell header">P0</div>
-                <div id="c00" class="cell self-loop" data-r="0" data-c="0">0</div>
-                <div id="c01" class="cell edge-active" data-r="0" data-c="1">1</div>
-                <div id="c02" class="cell" data-r="0" data-c="2">0</div>
-                <div id="c03" class="cell" data-r="0" data-c="3">0</div>
-                <div id="c04" class="cell edge-active" data-r="0" data-c="4">1</div>
-                
-                <div class="cell header">P1</div>
-                <div id="c10" class="cell edge-active" data-r="1" data-c="0">1</div>
-                <div id="c11" class="cell self-loop" data-r="1" data-c="1">0</div>
-                <div id="c12" class="cell edge-active" data-r="1" data-c="2">1</div>
-                <div id="c13" class="cell" data-r="1" data-c="3">0</div>
-                <div id="c14" class="cell" data-r="1" data-c="4">0</div>
-                
-                <div class="cell header">P2</div>
-                <div id="c20" class="cell" data-r="2" data-c="0">0</div>
-                <div id="c21" class="cell edge-active" data-r="2" data-c="1">1</div>
-                <div id="c22" class="cell self-loop" data-r="2" data-c="2">0</div>
-                <div id="c23" class="cell edge-active" data-r="2" data-c="3">1</div>
-                <div id="c24" class="cell" data-r="2" data-c="4">0</div>
-                
-                <div class="cell header">P3</div>
-                <div id="c30" class="cell" data-r="3" data-c="0">0</div>
-                <div id="c31" class="cell" data-r="3" data-c="1">0</div>
-                <div id="c32" class="cell edge-active" data-r="3" data-c="2">1</div>
-                <div id="c33" class="cell self-loop" data-r="3" data-c="3">0</div>
-                <div id="c34" class="cell edge-active" data-r="3" data-c="4">1</div>
-                
-                <div class="cell header">P4</div>
-                <div id="c40" class="cell edge-active" data-r="4" data-c="0">1</div>
-                <div id="c41" class="cell" data-r="4" data-c="1">0</div>
-                <div id="c42" class="cell" data-r="4" data-c="2">0</div>
-                <div id="c43" class="cell edge-active" data-r="4" data-c="3">1</div>
-                <div id="c44" class="cell self-loop" data-r="4" data-c="4">0</div>
+                {cells_str}
             </div>
         </div>
     </div>
@@ -1801,9 +1925,10 @@ def show_interactive_visualizer():
     const cells = document.querySelectorAll('.cell[data-r]');
     const nodes = document.querySelectorAll('.node');
     const info = document.getElementById('info');
+    const nodeLabels = {json.dumps(node_labels_js)};
     
-    cells.forEach(cell => {
-        cell.addEventListener('mouseenter', () => {
+    cells.forEach(cell => {{
+        cell.addEventListener('mouseenter', () => {{
             const r = cell.getAttribute('data-r');
             const c = cell.getAttribute('data-c');
             cell.classList.add('hovered');
@@ -1812,62 +1937,60 @@ def show_interactive_visualizer():
             document.getElementById('n' + c).classList.add('active');
             
             const edgeId = getEdgeId(r, c);
-            if (edgeId) {
+            if (edgeId) {{
                 const edge = document.getElementById(edgeId);
                 if (edge) edge.classList.add('active');
-                info.innerHTML = `Matrix element A[${r}][${c}] = 1 → Relationship exists between Person ${r} and Person ${c}.`;
-            } else if (r === c) {
-                info.innerHTML = `Matrix diagonal A[${r}][${c}] = 0 → Self-loops are disabled.`;
-            } else {
-                info.innerHTML = `Matrix element A[${r}][${c}] = 0 → No direct relationship between Person ${r} and Person ${c}.`;
-            }
-        });
+                info.innerHTML = `Matrix element A[${{r}}][${{c}}] = 1 → Relationship exists between node <b>${{nodeLabels[r]}}</b> and node <b>${{nodeLabels[c]}}</b>.`;
+            }} else if (r === c) {{
+                info.innerHTML = `Matrix diagonal A[${{r}}][${{c}}] = 0 → Self-loops are disabled for node <b>${{nodeLabels[r]}}</b>.`;
+            }} else {{
+                info.innerHTML = `Matrix element A[${{r}}][${{c}}] = 0 → No direct relationship between node <b>${{nodeLabels[r]}}</b> and node <b>${{nodeLabels[c]}}</b>.`;
+            }}
+        }});
         
-        cell.addEventListener('mouseleave', () => {
+        cell.addEventListener('mouseleave', () => {{
             const r = cell.getAttribute('data-r');
             const c = cell.getAttribute('data-c');
             cell.classList.remove('hovered');
             document.getElementById('n' + r).classList.remove('active');
             document.getElementById('n' + c).classList.remove('active');
             const edgeId = getEdgeId(r, c);
-            if (edgeId) {
+            if (edgeId) {{
                 const edge = document.getElementById(edgeId);
                 if (edge) edge.classList.remove('active');
-            }
+            }}
             info.innerHTML = "Hover over a cell or node to explore coordinates.";
-        });
-    });
+        }});
+    }});
     
-    nodes.forEach(node => {
-        node.addEventListener('mouseenter', () => {
+    nodes.forEach(node => {{
+        node.addEventListener('mouseenter', () => {{
             const id = node.getAttribute('id').replace('n', '');
             node.classList.add('active');
             
-            cells.forEach(cell => {
-                if (cell.getAttribute('data-r') === id || cell.getAttribute('data-c') === id) {
+            cells.forEach(cell => {{
+                if (cell.getAttribute('data-r') === id || cell.getAttribute('data-c') === id) {{
                     cell.style.background = 'rgba(139, 92, 246, 0.2)';
-                }
-            });
-            info.innerHTML = `Person ${id}: Connected to neighbors via Row ${id} and Column ${id} in the matrix.`;
-        });
-        node.addEventListener('mouseleave', () => {
+                }}
+            }});
+            info.innerHTML = `Node <b>${{nodeLabels[id]}}</b>: Connected to neighbors via Row ${{id}} and Column ${{id}} in this sub-matrix.`;
+        }});
+        node.addEventListener('mouseleave', () => {{
             const id = node.getAttribute('id').replace('n', '');
             node.classList.remove('active');
-            cells.forEach(cell => {
+            cells.forEach(cell => {{
                 cell.style.background = '';
-            });
+            }});
             info.innerHTML = "Hover over a cell or node to explore coordinates.";
-        });
-    });
+        }});
+    }});
     
-    function getEdgeId(r, c) {
+    function getEdgeId(r, c) {{
         const u = Math.min(r, c);
         const v = Math.max(r, c);
-        if ((u === 0 && v === 1) || (u === 1 && v === 2) || (u === 2 && v === 3) || (u === 3 && v === 4) || (u === 0 && v === 4)) {
-            return `e${u}${v}`;
-        }
-        return null;
-    }
+        const edge = document.getElementById(`e${{u}}_${{v}}`);
+        return edge ? `e${{u}}_${{v}}` : null;
+    }}
     </script>
     </body>
     </html>
