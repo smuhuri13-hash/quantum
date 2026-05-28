@@ -1,0 +1,10 @@
+1) Workshop1
+https://colab.research.google.com/drive/1nc4HUCGq12lOeWgl4Vb-Dwd9aYrIO2xu
+2) Social Network
+https://colab.research.google.com/drive/1TZgErgZfo5dKglH1igvOfupoT7Nwk5Ej#scrollTo=ODTWjCXDlK4_
+3) Breast Cancer Data
+https://colab.research.google.com/drive/1hoUSpXQtlR9MwNAX0dLn7Kh9IWG6QOjo
+4) Stock prediction data
+https://colab.research.google.com/drive/1LnlDJehtVJTtfS6WMqOnAS42ysrLeyJI
+5) Advertisement
+https://colab.research.google.com/drive/19vZBK0TTUUVGv1Ujne-ZTy7fvTWReV9A
